@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Hosting.Internal;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,7 +26,8 @@ namespace Microsoft.AspNetCore.Hosting
                               DiagnosticListener diagnosticListener,
                               IHttpContextFactory httpContextFactory,
                               IApplicationBuilderFactory applicationBuilderFactory,
-                              IEnumerable<IStartupFilter> startupFilters)
+                              IEnumerable<IStartupFilter> startupFilters,
+                              IConfiguration configuration)
         {
             Options = options?.Value ?? throw new System.ArgumentNullException(nameof(options));
 
@@ -41,6 +43,7 @@ namespace Microsoft.AspNetCore.Hosting
             HttpContextFactory = httpContextFactory ?? throw new ArgumentNullException(nameof(httpContextFactory));
             ApplicationBuilderFactory = applicationBuilderFactory ?? throw new ArgumentNullException(nameof(applicationBuilderFactory));
             StartupFilters = startupFilters ?? throw new ArgumentNullException(nameof(startupFilters));
+            Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         }
 
         public WebHostServiceOptions Options { get; }
@@ -53,10 +56,27 @@ namespace Microsoft.AspNetCore.Hosting
         public IApplicationBuilderFactory ApplicationBuilderFactory { get; }
 
         public IEnumerable<IStartupFilter> StartupFilters { get; }
+        public IConfiguration Configuration { get; private set; }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             // TODO: Add this logic https://github.com/aspnet/Hosting/blob/d7b9fd480765bdc01f06441f308fb288e6001049/src/Microsoft.AspNetCore.Hosting/Internal/WebHost.cs#L199-L302
+
+            var serverAddressesFeature = Server.Features?.Get<IServerAddressesFeature>();
+            var addresses = serverAddressesFeature?.Addresses;
+            if (addresses != null && !addresses.IsReadOnly && addresses.Count == 0)
+            {
+                var urls = Configuration[WebHostDefaults.ServerUrlsKey];
+                if (!string.IsNullOrEmpty(urls))
+                {
+                    serverAddressesFeature.PreferHostingUrls = WebHostUtilities.ParseBool(Configuration, WebHostDefaults.PreferHostingUrlsKey);
+
+                    foreach (var value in urls.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        addresses.Add(value);
+                    }
+                }
+            }
 
             var builder = ApplicationBuilderFactory.CreateBuilder(Server.Features);
             Action<IApplicationBuilder> configure = Options.ConfigureApplication;
