@@ -19,6 +19,7 @@ namespace Microsoft.AspNetCore.Hosting
     {
         private readonly IHostBuilder _builder;
         private readonly IConfiguration _config;
+        private readonly object _startupKey = new object();
 
         public GenericWebHostBuilder(IHostBuilder builder)
         {
@@ -128,7 +129,7 @@ namespace Microsoft.AspNetCore.Hosting
                 var webHostBuilderContext = GetWebHostBuilderContext(context);
 
                 var instance = ActivatorUtilities.CreateInstance(new ServiceProvider(webHostBuilderContext), startupType);
-                context.Properties[typeof(StartupClassInfo)] = instance;
+                context.Properties[_startupKey] = instance;
 
                 var configureServices = configureServicesBuilder.Build(instance);
                 configureServices(services);
@@ -168,7 +169,7 @@ namespace Microsoft.AspNetCore.Hosting
 
         private void ConfigureContainer<TContainer>(HostBuilderContext context, TContainer container)
         {
-            var instance = context.Properties[typeof(StartupClassInfo)];
+            var instance = context.Properties[_startupKey];
             var builder = (ConfigureContainerBuilder)context.Properties[typeof(ConfigureContainerBuilder)];
             builder.Build(instance)(container);
         }
@@ -218,9 +219,6 @@ namespace Microsoft.AspNetCore.Hosting
             _config[key] = value;
             return this;
         }
-
-        // This is just used as a key
-        private class StartupClassInfo { }
 
         // This exists just so that we can use ActivatorUtilities.CreateInstance on the Startup class
         private class ServiceProvider : IServiceProvider
