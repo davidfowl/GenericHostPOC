@@ -39,6 +39,12 @@ namespace Microsoft.AspNetCore.Hosting
                 services.AddSingleton(webhostContext.HostingEnvironment);
                 services.AddSingleton<IApplicationLifetime, WebApplicationLifetime>();
 
+                services.Configure<WebHostServiceOptions>(options =>
+                {
+                    // Set the options
+                    options.Options = (WebHostOptions)context.Properties[typeof(WebHostOptions)];
+                });
+
                 services.AddHostedService<WebHostService>();
 
                 // REVIEW: This is bad since we don't own this type. Anybody could add one of these and it would mess things up
@@ -178,6 +184,7 @@ namespace Microsoft.AspNetCore.Hosting
                     HostingEnvironment = hostingEnvironment
                 };
                 context.Properties[typeof(WebHostBuilderContext)] = webHostBuilderContext;
+                context.Properties[typeof(WebHostOptions)] = options;
                 return webHostBuilderContext;
             }
 
