@@ -62,6 +62,8 @@ namespace Microsoft.AspNetCore.Hosting
         {
             // TODO: Add this logic https://github.com/aspnet/Hosting/blob/d7b9fd480765bdc01f06441f308fb288e6001049/src/Microsoft.AspNetCore.Hosting/Internal/WebHost.cs#L199-L302
 
+            HostingEventSource.Log.HostStart();
+
             var serverAddressesFeature = Server.Features?.Get<IServerAddressesFeature>();
             var addresses = serverAddressesFeature?.Addresses;
             if (addresses != null && !addresses.IsReadOnly && addresses.Count == 0)
@@ -105,6 +107,8 @@ namespace Microsoft.AspNetCore.Hosting
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            HostingEventSource.Log.HostStop();
+
             return Server.StopAsync(cancellationToken);
         }
     }
