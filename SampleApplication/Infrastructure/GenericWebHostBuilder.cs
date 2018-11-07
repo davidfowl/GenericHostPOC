@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Builder;
@@ -127,6 +128,7 @@ namespace Microsoft.AspNetCore.Hosting
                 var webHostBuilderContext = GetWebHostBuilderContext(context);
 
                 var instance = ActivatorUtilities.CreateInstance(new ServiceProvider(webHostBuilderContext), startupType);
+                context.Properties[typeof(StartupClassInfo)] = instance;
 
                 var configureServices = configureServicesBuilder.Build(instance);
                 configureServices(services);
@@ -137,23 +139,38 @@ namespace Microsoft.AspNetCore.Hosting
                 });
             });
 
-            // TODO: Make ConfigureContainer work
-            //if (configureContainerMethod != null)
-            //{
-            //    var ihostBuilderConfigureContainerMethod = typeof(IHostBuilder).GetMethods().First(m => m.Name == "ConfigureContainer");
+            if (configureContainerMethod != null)
+            {
+                var configureContainerBuilder = new ConfigureContainerBuilder(configureContainerMethod)
+                {
+                    ConfigureContainerFilters = f => f
+                };
+                var containerType = configureContainerBuilder.GetContainerType();
 
-            //    // Get the parameter type from the ConfigureContainer method on 
-            //    var containerType = configureContainerMethod.GetParameters()[0].ParameterType;
+                // Store the builder in the property bag
+                _builder.Properties[typeof(ConfigureContainerBuilder)] = configureContainerBuilder;
 
-            //    // _builder.ConfigureContainer<T>(container => 
-            //    // {
-            //    //    configureServicesMethod.Invoke(container);
-            //    // });
+                var actionType = typeof(Action<,>).MakeGenericType(typeof(HostBuilderContext), containerType);
 
-            //    ihostBuilderConfigureContainerMethod.MakeGenericMethod(containerType).Invoke(_builder, new object[] { });
-            //}
+                // Get the private ConfigureContainer method on this type then close over the container type
+                var configureCallback = GetType().GetMethod("ConfigureContainer", BindingFlags.NonPublic | BindingFlags.Instance)
+                                                 .MakeGenericMethod(containerType)
+                                                 .CreateDelegate(actionType, this);
+
+                // _builder.ConfigureContainer<T>(ConfigureContainer);
+                typeof(IHostBuilder).GetMethods().First(m => m.Name == "ConfigureContainer")
+                    .MakeGenericMethod(containerType)
+                    .Invoke(_builder, new object[] { configureCallback });
+            }
 
             return this;
+        }
+
+        private void ConfigureContainer<TContainer>(HostBuilderContext context, TContainer container)
+        {
+            var instance = context.Properties[typeof(StartupClassInfo)];
+            var builder = (ConfigureContainerBuilder)context.Properties[typeof(ConfigureContainerBuilder)];
+            builder.Build(instance)(container);
         }
 
         // TODO: The extension method can detect this type and do some magic to call this method instead of the regular one
@@ -201,6 +218,9 @@ namespace Microsoft.AspNetCore.Hosting
             _config[key] = value;
             return this;
         }
+
+        // This is just used as a key
+        private class StartupClassInfo { }
 
         // This exists just so that we can use ActivatorUtilities.CreateInstance on the Startup class
         private class ServiceProvider : IServiceProvider

@@ -18,7 +18,7 @@ namespace WebApplication4
         {
             services.AddMvc();
         }
-        
+
         public void Configure(IApplicationBuilder app, IHostingEnvironment env)
         {
             if (env.IsDevelopment())

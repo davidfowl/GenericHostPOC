@@ -1,7 +1,6 @@
 ﻿using System.IO;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.Hosting
@@ -11,7 +10,6 @@ namespace Microsoft.Extensions.Hosting
     {
         public static IHostBuilder CreateDefaultBuilder(string[] args)
         {
-
             return new HostBuilder()
                .ConfigureLogging((hostingContext, logging) =>
                {
