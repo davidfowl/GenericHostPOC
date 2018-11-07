@@ -5,7 +5,7 @@ namespace Microsoft.AspNetCore.Hosting
 {
     public static class GenericHostBuilderExtensions
     {
-        public static IHostBuilder ConfigureWebHostWithDefaults(this IHostBuilder builder, Action<GenericWebHostBuilder> configure)
+        public static IHostBuilder ConfigureWebHostDefaults(this IHostBuilder builder, Action<GenericWebHostBuilder> configure)
         {
             return ConfigureWebHost(builder, webHostBuilder =>
             {
