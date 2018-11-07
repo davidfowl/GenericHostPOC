@@ -13,7 +13,7 @@ namespace WebApplication4
 
         public static IHostBuilder CreateWebHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
-                .ConfigureWebHostBuilderWithDefaults(builder =>
+                .ConfigureWebHostWithDefaults(builder =>
                 {
                     builder.UseStartup<Startup>();
                 });
