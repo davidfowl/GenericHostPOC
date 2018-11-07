@@ -49,8 +49,7 @@ namespace Microsoft.Extensions.Hosting
                    {
                        config.AddCommandLine(args);
                    }
-               })
-               .UseConsoleLifetime();
+               });
         }
     }
 }
