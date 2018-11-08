@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.Hosting
@@ -49,7 +50,11 @@ namespace Microsoft.Extensions.Hosting
                    {
                        config.AddCommandLine(args);
                    }
-               });
+               })
+               .UseServiceProviderFactory(new DefaultServiceProviderFactory(new ServiceProviderOptions
+               {
+                   ValidateScopes = true
+               }));
         }
     }
 }

@@ -1,7 +1,7 @@
 ﻿using System;
-using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Hosting;
 
-namespace Microsoft.AspNetCore.Hosting
+namespace Microsoft.Extensions.Hosting
 {
     public static class GenericHostBuilderExtensions
     {

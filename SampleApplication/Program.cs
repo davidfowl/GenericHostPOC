@@ -8,10 +8,10 @@ namespace WebApplication4
     {
         public static async Task Main(string[] args)
         {
-            await CreateWebHostBuilder(args).Build().RunAsync();
+            await CreateHostBuilder(args).Build().RunAsync();
         }
 
-        public static IHostBuilder CreateWebHostBuilder(string[] args) =>
+        public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(builder =>
                 {

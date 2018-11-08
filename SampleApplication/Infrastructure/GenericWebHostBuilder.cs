@@ -107,20 +107,7 @@ namespace Microsoft.AspNetCore.Hosting
             // Get the startyp type
             var startupType = typeof(TStartup);
 
-            var configureMethod = startupType.GetMethod("Configure", BindingFlags.Public | BindingFlags.Instance);
-            var configureServicesMethod = startupType.GetMethod("ConfigureServices", BindingFlags.Public | BindingFlags.Instance);
-            var configureContainerMethod = startupType.GetMethod("ConfigureContainer", BindingFlags.Public | BindingFlags.Instance);
-
             // TODO: Figure out how to port IStartupConfigureServicesFilter (this no longer works)
-
-            // TODO: The usual error checking around the shape of the Startup class
-
-            var configureServicesBuilder = new ConfigureServicesBuilder(configureServicesMethod)
-            {
-                StartupServiceFilters = (f) => f
-            };
-
-            var configureBuilder = new ConfigureBuilder(configureMethod);
 
             _config[HostDefaults.ApplicationKey] = startupType.GetTypeInfo().Assembly.GetName().Name;
 
@@ -131,38 +118,41 @@ namespace Microsoft.AspNetCore.Hosting
                 var instance = ActivatorUtilities.CreateInstance(new ServiceProvider(webHostBuilderContext), startupType);
                 context.Properties[_startupKey] = instance;
 
+                // Startup.ConfigureServices
+                var configureServicesBuilder = StartupReflectionLoader.FindConfigureServicesDelegate(startupType, context.HostingEnvironment.EnvironmentName);
                 var configureServices = configureServicesBuilder.Build(instance);
                 configureServices(services);
 
+                // We cannot support methods that return IServiceProvider as that is terminal and we need ConfigureServices to compose
+
+                // Startup.Configure
+                var configureBuilder = StartupReflectionLoader.FindConfigureDelegate(startupType, context.HostingEnvironment.EnvironmentName);
                 services.Configure<WebHostServiceOptions>(options =>
                 {
                     options.ConfigureApplication = configureBuilder.Build(instance);
                 });
-            });
 
-            if (configureContainerMethod != null)
-            {
-                var configureContainerBuilder = new ConfigureContainerBuilder(configureContainerMethod)
+                // Startup.ConfigureContainer
+                var configureContainerBuilder = StartupReflectionLoader.FindConfigureContainerDelegate(startupType, context.HostingEnvironment.EnvironmentName);
+                if (configureContainerBuilder.MethodInfo != null)
                 {
-                    ConfigureContainerFilters = f => f
-                };
-                var containerType = configureContainerBuilder.GetContainerType();
+                    var containerType = configureContainerBuilder.GetContainerType();
+                    // Store the builder in the property bag
+                    _builder.Properties[typeof(ConfigureContainerBuilder)] = configureContainerBuilder;
 
-                // Store the builder in the property bag
-                _builder.Properties[typeof(ConfigureContainerBuilder)] = configureContainerBuilder;
+                    var actionType = typeof(Action<,>).MakeGenericType(typeof(HostBuilderContext), containerType);
 
-                var actionType = typeof(Action<,>).MakeGenericType(typeof(HostBuilderContext), containerType);
+                    // Get the private ConfigureContainer method on this type then close over the container type
+                    var configureCallback = GetType().GetMethod(nameof(ConfigureContainer), BindingFlags.NonPublic | BindingFlags.Instance)
+                                                     .MakeGenericMethod(containerType)
+                                                     .CreateDelegate(actionType, this);
 
-                // Get the private ConfigureContainer method on this type then close over the container type
-                var configureCallback = GetType().GetMethod("ConfigureContainer", BindingFlags.NonPublic | BindingFlags.Instance)
-                                                 .MakeGenericMethod(containerType)
-                                                 .CreateDelegate(actionType, this);
-
-                // _builder.ConfigureContainer<T>(ConfigureContainer);
-                typeof(IHostBuilder).GetMethods().First(m => m.Name == "ConfigureContainer")
-                    .MakeGenericMethod(containerType)
-                    .Invoke(_builder, new object[] { configureCallback });
-            }
+                    // _builder.ConfigureContainer<T>(ConfigureContainer);
+                    typeof(IHostBuilder).GetMethods().First(m => m.Name == nameof(IHostBuilder.ConfigureContainer))
+                        .MakeGenericMethod(containerType)
+                        .Invoke(_builder, new object[] { configureCallback });
+                }
+            });
 
             return this;
         }
