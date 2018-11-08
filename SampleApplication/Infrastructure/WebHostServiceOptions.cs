@@ -13,5 +13,7 @@ namespace Microsoft.AspNetCore.Hosting
         public Action<IApplicationBuilder> ConfigureApplication { get; set; }
 
         public WebHostOptions Options { get; set; }
+
+        public AggregateException StartupExceptions { get; set; }
     }
 }

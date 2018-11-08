@@ -20,6 +20,7 @@ namespace Microsoft.AspNetCore.Hosting
         private readonly IHostBuilder _builder;
         private readonly IConfiguration _config;
         private readonly object _startupKey = new object();
+        private readonly object _startupErrorsKey = new object();
 
         public GenericWebHostBuilder(IHostBuilder builder)
         {
@@ -33,6 +34,46 @@ namespace Microsoft.AspNetCore.Hosting
                 config.AddConfiguration(_config);
             });
 
+            // REVIEW: This is a bit of a hack, it uses ConfigureAppConfiguration to get access to the
+            // HostBuilderContext and because it runs *before* ConfigureServices
+            _builder.ConfigureAppConfiguration((context, _) =>
+            {
+                var webhostContext = GetWebHostBuilderContext(context);
+
+                var options = (WebHostOptions)context.Properties[typeof(WebHostOptions)];
+
+                if (!options.PreventHostingStartup)
+                {
+                    var exceptions = new List<Exception>();
+
+                    // Execute the hosting startup assemblies
+                    foreach (var assemblyName in options.GetFinalHostingStartupAssemblies().Distinct(StringComparer.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            var assembly = Assembly.Load(new AssemblyName(assemblyName));
+
+                            foreach (var attribute in assembly.GetCustomAttributes<HostingStartupAttribute>())
+                            {
+                                var hostingStartup = (IHostingStartup)Activator.CreateInstance(attribute.HostingStartupType);
+                                hostingStartup.Configure(this);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // Capture any errors that happen during startup
+                            exceptions.Add(new InvalidOperationException($"Startup assembly {assemblyName} failed to execute. See the inner exception for more details.", ex));
+                        }
+                    }
+
+                    if (exceptions.Count > 0)
+                    {
+                        var hostingStartupErrors = new AggregateException(exceptions);
+                        context.Properties[_startupErrorsKey] = hostingStartupErrors;
+                    }
+                }
+            });
+
             _builder.ConfigureServices((context, services) =>
             {
                 var webhostContext = GetWebHostBuilderContext(context);
@@ -41,10 +82,16 @@ namespace Microsoft.AspNetCore.Hosting
                 services.AddSingleton(webhostContext.HostingEnvironment);
                 services.AddSingleton<IApplicationLifetime, WebApplicationLifetime>();
 
-                services.Configure<WebHostServiceOptions>(options =>
+                services.Configure<WebHostServiceOptions>(o =>
                 {
                     // Set the options
-                    options.Options = (WebHostOptions)context.Properties[typeof(WebHostOptions)];
+                    o.Options = (WebHostOptions)context.Properties[typeof(WebHostOptions)];
+
+                    // Store and forward any startup errors
+                    if (context.Properties.TryGetValue(_startupErrorsKey, out var value))
+                    {
+                        o.StartupExceptions = (AggregateException)value;
+                    }
                 });
 
                 services.AddHostedService<WebHostService>();

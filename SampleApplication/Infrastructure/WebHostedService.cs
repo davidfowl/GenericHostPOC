@@ -103,6 +103,22 @@ namespace Microsoft.AspNetCore.Hosting
                     Logger.LogInformation("Now listening on: {address}", address);
                 }
             }
+
+            if (Logger.IsEnabled(LogLevel.Debug))
+            {
+                foreach (var assembly in Options.Options.GetFinalHostingStartupAssemblies())
+                {
+                    Logger.LogDebug("Loaded hosting startup assembly {assemblyName}", assembly);
+                }
+            }
+
+            if (Options.StartupExceptions != null)
+            {
+                foreach (var exception in Options.StartupExceptions.InnerExceptions)
+                {
+                    Logger.HostingStartupAssemblyError(exception);
+                }
+            }
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
