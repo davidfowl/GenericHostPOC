@@ -1,5 +1,9 @@
 ﻿using System;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore;
 
 namespace Microsoft.Extensions.Hosting
 {
@@ -9,11 +13,30 @@ namespace Microsoft.Extensions.Hosting
         {
             return ConfigureWebHost(builder, webHostBuilder =>
             {
-                // TODO: Add this https://github.com/aspnet/MetaPackages/blob/62d9794c633a9a2c502334d525d81c454ac29264/src/Microsoft.AspNetCore/WebHost.cs#L195-L212
                 webHostBuilder.UseIISIntegration();
                 webHostBuilder.UseKestrel((builderContext, options) =>
                 {
                     options.Configure(builderContext.Configuration.GetSection("Kestrel"));
+                });
+
+                webHostBuilder.ConfigureServices((hostingContext, services) =>
+                {
+                    // Fallback
+                    services.PostConfigure<HostFilteringOptions>(options =>
+                    {
+                        if (options.AllowedHosts == null || options.AllowedHosts.Count == 0)
+                        {
+                            // "AllowedHosts": "localhost;127.0.0.1;[::1]"
+                            var hosts = hostingContext.Configuration["AllowedHosts"]?.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                            // Fall back to "*" to disable.
+                            options.AllowedHosts = (hosts?.Length > 0 ? hosts : new[] { "*" });
+                        }
+                    });
+                    // Change notification
+                    services.AddSingleton<IOptionsChangeTokenSource<HostFilteringOptions>>(
+                        new ConfigurationChangeTokenSource<HostFilteringOptions>(hostingContext.Configuration));
+
+                    services.AddTransient<IStartupFilter, HostFilteringStartupFilter>();
                 });
 
                 configure(webHostBuilder);
