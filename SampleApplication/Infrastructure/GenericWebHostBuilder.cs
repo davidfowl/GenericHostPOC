@@ -107,6 +107,12 @@ namespace Microsoft.AspNetCore.Hosting
             // Get the startyp type
             var startupType = typeof(TStartup);
 
+            // We cannot support methods that return IServiceProvider as that is terminal and we need ConfigureServices to compose
+            if (typeof(IStartup).IsAssignableFrom(startupType))
+            {
+                throw new NotSupportedException($"{typeof(IStartup)} isn't supported");
+            }
+
             // TODO: Figure out how to port IStartupConfigureServicesFilter (this no longer works)
 
             _config[HostDefaults.ApplicationKey] = startupType.GetTypeInfo().Assembly.GetName().Name;
@@ -122,8 +128,6 @@ namespace Microsoft.AspNetCore.Hosting
                 var configureServicesBuilder = StartupReflectionLoader.FindConfigureServicesDelegate(startupType, context.HostingEnvironment.EnvironmentName);
                 var configureServices = configureServicesBuilder.Build(instance);
                 configureServices(services);
-
-                // We cannot support methods that return IServiceProvider as that is terminal and we need ConfigureServices to compose
 
                 // Startup.Configure
                 var configureBuilder = StartupReflectionLoader.FindConfigureDelegate(startupType, context.HostingEnvironment.EnvironmentName);
