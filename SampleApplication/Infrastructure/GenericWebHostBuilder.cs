@@ -20,7 +20,7 @@ namespace Microsoft.AspNetCore.Hosting
         private readonly IHostBuilder _builder;
         private readonly IConfiguration _config;
         private readonly object _startupKey = new object();
-        private readonly object _startupErrorsKey = new object();
+        private readonly AggregateException _hostingStartupErrors;
 
         public GenericWebHostBuilder(IHostBuilder builder)
         {
@@ -34,45 +34,43 @@ namespace Microsoft.AspNetCore.Hosting
                 config.AddConfiguration(_config);
             });
 
-            // REVIEW: This is a bit of a hack, it uses ConfigureAppConfiguration to get access to the
-            // HostBuilderContext and because it runs *before* ConfigureServices
-            _builder.ConfigureAppConfiguration((context, _) =>
+            // REVIEW: This doesn't support config from the outside
+            var configuration = new ConfigurationBuilder()
+                            .AddEnvironmentVariables()
+                            .Build();
+
+            var options = new WebHostOptions(configuration, Assembly.GetEntryAssembly()?.GetName().Name);
+
+            if (!options.PreventHostingStartup)
             {
-                var webhostContext = GetWebHostBuilderContext(context);
+                var exceptions = new List<Exception>();
 
-                var options = (WebHostOptions)context.Properties[typeof(WebHostOptions)];
-
-                if (!options.PreventHostingStartup)
+                // Execute the hosting startup assemblies
+                foreach (var assemblyName in options.GetFinalHostingStartupAssemblies().Distinct(StringComparer.OrdinalIgnoreCase))
                 {
-                    var exceptions = new List<Exception>();
-
-                    // Execute the hosting startup assemblies
-                    foreach (var assemblyName in options.GetFinalHostingStartupAssemblies().Distinct(StringComparer.OrdinalIgnoreCase))
+                    try
                     {
-                        try
-                        {
-                            var assembly = Assembly.Load(new AssemblyName(assemblyName));
+                        var assembly = Assembly.Load(new AssemblyName(assemblyName));
 
-                            foreach (var attribute in assembly.GetCustomAttributes<HostingStartupAttribute>())
-                            {
-                                var hostingStartup = (IHostingStartup)Activator.CreateInstance(attribute.HostingStartupType);
-                                hostingStartup.Configure(this);
-                            }
-                        }
-                        catch (Exception ex)
+                        foreach (var attribute in assembly.GetCustomAttributes<HostingStartupAttribute>())
                         {
-                            // Capture any errors that happen during startup
-                            exceptions.Add(new InvalidOperationException($"Startup assembly {assemblyName} failed to execute. See the inner exception for more details.", ex));
+                            var hostingStartup = (IHostingStartup)Activator.CreateInstance(attribute.HostingStartupType);
+                            hostingStartup.Configure(this);
                         }
                     }
-
-                    if (exceptions.Count > 0)
+                    catch (Exception ex)
                     {
-                        var hostingStartupErrors = new AggregateException(exceptions);
-                        context.Properties[_startupErrorsKey] = hostingStartupErrors;
+                        // Capture any errors that happen during startup
+                        exceptions.Add(new InvalidOperationException($"Startup assembly {assemblyName} failed to execute. See the inner exception for more details.", ex));
                     }
                 }
-            });
+
+                if (exceptions.Count > 0)
+                {
+                    _hostingStartupErrors = new AggregateException(exceptions);
+                }
+            }
+
 
             _builder.ConfigureServices((context, services) =>
             {
@@ -86,12 +84,8 @@ namespace Microsoft.AspNetCore.Hosting
                 {
                     // Set the options
                     o.Options = (WebHostOptions)context.Properties[typeof(WebHostOptions)];
-
                     // Store and forward any startup errors
-                    if (context.Properties.TryGetValue(_startupErrorsKey, out var value))
-                    {
-                        o.StartupExceptions = (AggregateException)value;
-                    }
+                    o.StartupExceptions = _hostingStartupErrors;
                 });
 
                 services.AddHostedService<WebHostService>();
