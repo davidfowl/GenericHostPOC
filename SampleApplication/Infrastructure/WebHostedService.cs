@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -88,8 +89,28 @@ namespace Microsoft.AspNetCore.Hosting
                 configure = filter.Configure(configure);
             }
 
-            configure(builder);
-            var application = builder.Build();
+            RequestDelegate application = null;
+
+            try
+            {
+                Options.StartupConfigureServicesError?.Throw();
+
+                configure(builder);
+
+                // Build the request pipeline
+                application = builder.Build();
+            }
+            catch (Exception ex)
+            {
+                Logger.ApplicationError(ex);
+
+                if (!Options.Options.CaptureStartupErrors)
+                {
+                    throw;
+                }
+
+                application = BuildErrorPageApplication(ex);
+            }
 
             var httpApplication = new HostingApplication(application, Logger, DiagnosticListener, HttpContextFactory);
 
@@ -112,13 +133,27 @@ namespace Microsoft.AspNetCore.Hosting
                 }
             }
 
-            if (Options.StartupExceptions != null)
+            if (Options.HostingStartupExceptions != null)
             {
-                foreach (var exception in Options.StartupExceptions.InnerExceptions)
+                foreach (var exception in Options.HostingStartupExceptions.InnerExceptions)
                 {
                     Logger.HostingStartupAssemblyError(exception);
                 }
             }
+        }
+
+        private RequestDelegate BuildErrorPageApplication(Exception exception)
+        {
+            if (exception is TargetInvocationException tae)
+            {
+                exception = tae.InnerException;
+            }
+
+            // TODO: Use the real error page rendering
+            return async context =>
+            {
+                await context.Response.WriteAsync(exception.ToString());
+            };
         }
 
         public Task StopAsync(CancellationToken cancellationToken)

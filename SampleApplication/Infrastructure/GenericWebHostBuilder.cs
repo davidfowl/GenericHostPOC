@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Builder;
 using Microsoft.AspNetCore.Hosting.Internal;
@@ -71,7 +72,6 @@ namespace Microsoft.AspNetCore.Hosting
                 }
             }
 
-
             _builder.ConfigureServices((context, services) =>
             {
                 var webhostContext = GetWebHostBuilderContext(context);
@@ -85,7 +85,7 @@ namespace Microsoft.AspNetCore.Hosting
                     // Set the options
                     o.Options = (WebHostOptions)context.Properties[typeof(WebHostOptions)];
                     // Store and forward any startup errors
-                    o.StartupExceptions = _hostingStartupErrors;
+                    o.HostingStartupExceptions = _hostingStartupErrors;
                 });
 
                 services.AddHostedService<WebHostService>();
@@ -168,7 +168,18 @@ namespace Microsoft.AspNetCore.Hosting
                 // Startup.ConfigureServices
                 var configureServicesBuilder = StartupReflectionLoader.FindConfigureServicesDelegate(startupType, context.HostingEnvironment.EnvironmentName);
                 var configureServices = configureServicesBuilder.Build(instance);
-                configureServices(services);
+
+                try
+                {
+                    configureServices(services);
+                }
+                catch(Exception ex)
+                {
+                    services.Configure<WebHostServiceOptions>(o =>
+                    {
+                        o.StartupConfigureServicesError = ExceptionDispatchInfo.Capture(ex);
+                    });
+                }
 
                 // Startup.Configure
                 var configureBuilder = StartupReflectionLoader.FindConfigureDelegate(startupType, context.HostingEnvironment.EnvironmentName);
@@ -177,6 +188,7 @@ namespace Microsoft.AspNetCore.Hosting
                     options.ConfigureApplication = configureBuilder.Build(instance);
                 });
 
+                // REVIEW: We're doing this in the callback so that we have access to the hosting environment
                 // Startup.ConfigureContainer
                 var configureContainerBuilder = StartupReflectionLoader.FindConfigureContainerDelegate(startupType, context.HostingEnvironment.EnvironmentName);
                 if (configureContainerBuilder.MethodInfo != null)

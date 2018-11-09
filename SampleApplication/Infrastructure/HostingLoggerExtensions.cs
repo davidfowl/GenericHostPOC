@@ -15,6 +15,13 @@ namespace Microsoft.Extensions.Logging
                 message: "Hosting startup assembly exception",
                 exception: exception);
         }
+        public static void ApplicationError(this ILogger logger, Exception exception)
+        {
+            logger.ApplicationError(
+                eventId: 0,
+                message: "Application startup exception",
+                exception: exception);
+        }
 
         public static void ApplicationError(this ILogger logger, EventId eventId, string message, Exception exception)
         {
