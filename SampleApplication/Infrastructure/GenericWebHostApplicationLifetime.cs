@@ -1,11 +1,11 @@
 ﻿using System.Threading;
 
-namespace Microsoft.AspNetCore.Hosting
+namespace Microsoft.AspNetCore.Hosting.Internal
 {
-    internal class WebApplicationLifetime : IApplicationLifetime
+    internal class GenericWebHostApplicationLifetime : IApplicationLifetime
     {
         private readonly Microsoft.Extensions.Hosting.IApplicationLifetime _applicationLifetime;
-        public WebApplicationLifetime(Microsoft.Extensions.Hosting.IApplicationLifetime applicationLifetime)
+        public GenericWebHostApplicationLifetime(Microsoft.Extensions.Hosting.IApplicationLifetime applicationLifetime)
         {
             _applicationLifetime = applicationLifetime;
         }

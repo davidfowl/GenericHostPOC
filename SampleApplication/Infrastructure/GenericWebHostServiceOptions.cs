@@ -1,18 +1,15 @@
 ﻿using System;
 using System.Runtime.ExceptionServices;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting.Internal;
 
-namespace Microsoft.AspNetCore.Hosting
+namespace Microsoft.AspNetCore.Hosting.Internal
 {
-    public class WebHostServiceOptions
+    internal class GenericWebHostServiceOptions
     {
         public Action<IApplicationBuilder> ConfigureApplication { get; set; }
 
-        public WebHostOptions Options { get; set; }
+        public WebHostOptions WebHostOptions { get; set; }
 
         public AggregateException HostingStartupExceptions { get; set; }
-
-        public ExceptionDispatchInfo StartupConfigureServicesError { get; set; }
     }
 }

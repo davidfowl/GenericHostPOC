@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Hosting.Internal;
 
 namespace Microsoft.Extensions.Hosting
 {
