@@ -14,12 +14,13 @@ namespace Microsoft.Extensions.Hosting
         {
             return ConfigureWebHost(builder, webHostBuilder =>
             {
-                webHostBuilder.UseIISIntegration();
                 webHostBuilder.UseKestrel((builderContext, options) =>
                 {
                     options.Configure(builderContext.Configuration.GetSection("Kestrel"));
                 });
-
+                webHostBuilder.UseIIS();
+                webHostBuilder.UseIISIntegration();
+                
                 webHostBuilder.ConfigureServices((hostingContext, services) =>
                 {
                     // Fallback

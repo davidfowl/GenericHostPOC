@@ -22,7 +22,7 @@ namespace Microsoft.AspNetCore.Hosting.Internal
 
         public IWebHost Build()
         {
-            throw new NotSupportedException();
+            throw new NotSupportedException($"Building this implementation of {nameof(IWebHostBuilder)} is not supported.");
         }
 
         public IWebHostBuilder ConfigureAppConfiguration(Action<WebHostBuilderContext, IConfigurationBuilder> configureDelegate)
